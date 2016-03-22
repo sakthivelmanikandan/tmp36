@@ -1,0 +1,76 @@
+var bool: pin0_out;
+var bool: pin1_out;
+var uint32: flag;
+var uint32: adcvalue;
+var uint32: digit;
+var uint32: mode;
+var float32: ElecRaw;
+var float32: Raw;
+var float32: Consol;
+var uint32: model[36]={60,65,70,75,80,85,90,95,100,105,110,115,120,125,130,135,140 ,145,150,155,160,165,170,175,180,185,190,195,200,205,210,215,220,225,230,235};
+processdef electricallayer(in channel<uint32>: input,out float32: eraw)
+{
+  state Main {
+var uint32: data;
+    while (input.not_empty())
+   {
+      digit=input.pop();
+      if(digit==101)
+ {
+break;}
+else
+       {data=data+digit-48;
+data=data*10;
+flag=1;}
+
+    }
+if(flag==1)
+{
+data=data/10;
+adcvalue=data;
+eraw=(float32.as(data)*3.3)/1024.0;
+data=0;
+flag=0;
+}
+}
+}
+processdef physicallayer(in float32: eraw,out float32: raw)
+{
+state main
+{
+raw=eraw/(10.0/1000.0);
+IO.println("temp in celsius-%f",raw);
+}
+}
+processdef virtuallayer(in uint32: d,in float32: raw,out float32: consol)
+{
+state main
+{
+var float32: raw_float;
+var uint32: rpm;
+raw_float=raw*(9.0/5.0)+32.0;
+rpm=uint32.as(((((float32.as(d)*3.3)/1024.0)/(10.0/1000.0))*1.8+32.0)*40.0-2400.0) ;
+IO.println("temp in faren-%f,model temp-%u,rpm-%u",raw_float,model[rpm/200],rpm);
+if(float32.as(model[rpm/200])-10.0<raw_float and float32.as(model[rpm/200])+10.0>raw_float)
+{
+pin0_out=true;
+pin1_out=false;
+consol=raw_float;
+IO.println("real");
+}
+else
+{
+pin0_out=false;
+pin1_out=true;
+consol=float32.as(model[rpm/200]);
+IO.println("modeled");
+}
+}
+
+}
+var queue<uint32>: ttyTemperature_in[50];
+
+process electricallayer: adcreader[100ms](ttyTemperature_in,ElecRaw);
+process physicallayer: temp[100ms](ElecRaw,Raw);
+process virtuallayer: modeldata[100ms](adcvalue,Raw,Consol);
+
